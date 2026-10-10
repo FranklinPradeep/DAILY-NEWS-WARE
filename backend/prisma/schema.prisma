@@ -1,0 +1,288 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+  JOURNALIST
+  READER
+}
+
+enum ArticleStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  SCHEDULED
+  PUBLISHED
+  RESUBMITTED
+}
+
+enum NotificationType {
+  ARTICLE_APPROVED
+  ARTICLE_REJECTED
+  EDITOR_FEEDBACK
+  ARTICLE_PUBLISHED
+  FOLLOWED_JOURNALIST
+  FOLLOWED_CATEGORY
+  COMMENT_REPLY
+  ARTICLE_INTERACTION
+  SYSTEM
+}
+
+model Role {
+  id          String    @id @default(cuid())
+  name        UserRole  @unique
+  description String?
+  users       User[]
+  createdAt   DateTime  @default(now())
+}
+
+model User {
+  id                  String            @id @default(cuid())
+  name                String
+  email               String            @unique
+  password            String
+  bio                 String?
+  avatar              String?
+  roleId              String
+  role                Role              @relation(fields: [roleId], references: [id])
+  isEmailVerified     Boolean           @default(false)
+  resetToken          String?
+  resetTokenExpiresAt DateTime?
+  createdAt           DateTime          @default(now())
+  updatedAt           DateTime          @updatedAt
+  articles            Article[]
+  comments            Comment[]
+  likes               Like[]
+  bookmarks           Bookmark[]
+  follows            Follow[]
+  notifications      Notification[]
+  articleViews        ArticleView[]
+  articleRevisions    ArticleRevision[]
+  mediaUploads        Media[]
+  commentReplies      CommentReply[]
+  categoryFollows     CategoryFollow[]
+  authorFollowing     Follow[]          @relation("AuthorFollowing")
+}
+
+model Category {
+  id        String          @id @default(cuid())
+  name      String          @unique
+  slug      String          @unique
+  description String?
+  articles  Article[]
+  follows   CategoryFollow[]
+  createdAt DateTime        @default(now())
+}
+
+model Tag {
+  id        String        @id @default(cuid())
+  name      String        @unique
+  articles  ArticleTag[]
+  createdAt DateTime      @default(now())
+}
+
+model Article {
+  id               String             @id @default(cuid())
+  title            String
+  slug             String             @unique
+  subtitle         String?
+  excerpt          String?
+  content          String
+  featuredImage    String?
+  authorId         String
+  author           User               @relation(fields: [authorId], references: [id])
+  categoryId       String?
+  category         Category?          @relation(fields: [categoryId], references: [id])
+  status           ArticleStatus      @default(DRAFT)
+  isBreaking       Boolean            @default(false)
+  isFeatured       Boolean            @default(false)
+  publishedAt      DateTime?
+  scheduledAt      DateTime?
+  seoTitle         String?
+  seoDescription   String?
+  viewCount        Int                @default(0)
+  likeCount        Int                @default(0)
+  commentCount     Int                @default(0)
+  shareCount       Int                @default(0)
+  bookmarkCount    Int                @default(0)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  tags             ArticleTag[]
+  comments         Comment[]
+  likes            Like[]
+  bookmarks        Bookmark[]
+  articleViews     ArticleView[]
+  articleRevisions ArticleRevision[]
+  articleAnalytics ArticleAnalytics?
+  breakingNews     BreakingNews?
+  scheduledArticle ScheduledArticle?
+  media            Media[]
+}
+
+model ArticleTag {
+  articleId String
+  article   Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tagId     String
+  tag       Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+}
+
+model Comment {
+  id         String        @id @default(cuid())
+  articleId  String
+  article    Article       @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id])
+  parentId   String?
+  parent     Comment?      @relation("CommentChildren", fields: [parentId], references: [id])
+  children   Comment[]     @relation("CommentChildren")
+  content    String
+  isHidden   Boolean       @default(false)
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  likes      CommentLike[]
+  replies    CommentReply[]
+}
+
+model CommentReply {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  replyText String
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model CommentLike {
+  id        String   @id @default(cuid())
+  commentId String
+  comment   Comment  @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime @default(now())
+
+  @@unique([commentId, userId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  articleId  String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([articleId, userId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([articleId, userId])
+}
+
+model Follow {
+  id         String   @id @default(cuid())
+  followerId String
+  follower   User     @relation(fields: [followerId], references: [id])
+  authorId   String
+  author     User     @relation("AuthorFollowing", fields: [authorId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([followerId, authorId])
+}
+
+model CategoryFollow {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, categoryId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id])
+  type      NotificationType
+  message   String
+  link      String?
+  isRead    Boolean          @default(false)
+  createdAt DateTime         @default(now())
+}
+
+model ArticleView {
+  id        String   @id @default(cuid())
+  articleId  String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model ArticleRevision {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  editorId  String?
+  user      User?    @relation(fields: [editorId], references: [id])
+  content   String
+  note      String?
+  createdAt DateTime @default(now())
+}
+
+model ArticleAnalytics {
+  id          String   @id @default(cuid())
+  articleId   String   @unique
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  reads       Int      @default(0)
+  engagement Float    @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BreakingNews {
+  id        String   @id @default(cuid())
+  articleId String   @unique
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
+
+model ScheduledArticle {
+  id        String   @id @default(cuid())
+  articleId String   @unique
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  publishAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  articleId String?
+  article   Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  ownerId   String?
+  owner     User?    @relation(fields: [ownerId], references: [id])
+  url       String
+  fileName  String
+  mimeType  String
+  size      Int
+  createdAt DateTime @default(now())
+}
